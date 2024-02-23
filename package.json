@@ -1,5 +1,5 @@
 {
-  "name": "opensea-js",
+  "name": "zerofee-opensea-js",
   "version": "7.0.5",
   "description": "TypeScript SDK for the OpenSea marketplace helps developers build new experiences using NFTs and our marketplace data",
   "license": "MIT",
@@ -76,14 +76,14 @@
     "crypto",
     "ethereum",
     "javascript",
-    "typescript",
     "marketplace",
     "nft",
     "node",
     "non-fungible-tokens",
     "project-opensea",
     "sdk",
-    "smart-contracts"
+    "smart-contracts",
+    "typescript"
   ],
   "engines": {
     "node": ">=16.0.0"

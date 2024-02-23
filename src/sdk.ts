@@ -471,9 +471,12 @@ export class OpenSeaSDK {
     );
 
     const collection = await this.api.getCollection(nft.collection);
+    console.log("before exclude addresses: ", collection.fees);
+    const fees = (collection.fees || []).filter((item) => item.required);
+    console.log("after exclude addresses: ", fees);
 
     const considerationFeeItems = await this.getFees({
-      collection,
+      collection: { ...collection, fees },
       seller: accountAddress,
       paymentTokenAddress,
       startAmount: basePrice,
