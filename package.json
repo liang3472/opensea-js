@@ -7,7 +7,7 @@
   "homepage": "https://docs.opensea.io/reference/api-overview",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ProjectOpenSea/opensea-js.git"
+    "url": "git+https://github.com/liang3472/opensea-js.git"
   },
   "bugs": {
     "url": "https://github.com/ProjectOpenSea/opensea-js/issues"
