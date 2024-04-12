@@ -95,6 +95,25 @@ The units for `startAmount` are Ether (ETH). If you want to specify another ERC-
 
 See [Listening to Events](#listening-to-events) to respond to the setup transactions that occur the first time a user sells an item.
 
+### Creating Collection and Trait Offers
+
+Criteria offers, consisting of collection and trait offers, are supported with `openseaSDK.createCollectionOffer()`.
+
+For trait offers, include `traitType` as the trait name and `traitValue` as the required value for the offer.
+
+```typescript
+const collection = await sdk.api.getCollection("cool-cats-nft");
+const offer = await openseaSDK.createCollectionOffer({
+  collectionSlug: collection.collection,
+  accountAddress: walletAddress,
+  paymentTokenAddress: getWETHAddress(sdk.chain),
+  amount: 7,
+  quantity: 1,
+  traitType: "face",
+  traitValue: "tvface bobross",
+});
+```
+
 #### Creating English Auctions
 
 English Auctions are auctions that start at a small amount (we recommend even doing 0!) and increase with every bid. At expiration time, the item sells to the highest bidder.

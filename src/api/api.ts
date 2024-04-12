@@ -67,6 +67,14 @@ import {
   accountFromJSON,
 } from "../utils/utils";
 
+function stall(duration: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, duration);
+  });
+}
+
 /**
  * The API class for the OpenSea SDK.
  * @category Main Classes
@@ -260,15 +268,23 @@ export class OpenSeaAPI {
   }
 
   /**
-   * Gets the best listing for a given collection.
+   * Gets the best listings for a given collection.
    * @param collectionSlug The slug of the collection.
+   * @param limit The number of listings to return. Must be between 1 and 100. Default: 100
+   * @param next The cursor for the next page of results. This is returned from a previous request.
    * @returns The {@link GetListingsResponse} returned by the API.
    */
   public async getBestListings(
     collectionSlug: string,
+    limit?: number,
+    next?: string,
   ): Promise<GetListingsResponse> {
     const response = await this.get<GetListingsResponse>(
       getBestListingsAPIPath(collectionSlug),
+      {
+        limit,
+        next,
+      },
     );
     return response;
   }
@@ -339,6 +355,8 @@ export class OpenSeaAPI {
    * @param quantity The number of NFTs requested in the offer.
    * @param collectionSlug The slug (identifier) of the collection to build the offer for.
    * @param offerProtectionEnabled Build the offer on OpenSea's signed zone to provide offer protections from receiving an item which is disabled from trading.
+   * @param traitType If defined, the trait name to create the collection offer for.
+   * @param traitValue If defined, the trait value to create the collection offer for.
    * @returns The {@link BuildOfferResponse} returned by the API.
    */
   public async buildOffer(
@@ -346,12 +364,23 @@ export class OpenSeaAPI {
     quantity: number,
     collectionSlug: string,
     offerProtectionEnabled = true,
+    traitType?: string,
+    traitValue?: string,
   ): Promise<BuildOfferResponse> {
+    if (traitType || traitValue) {
+      if (!traitType || !traitValue) {
+        throw new Error(
+          "Both traitType and traitValue must be defined if one is defined.",
+        );
+      }
+    }
     const payload = getBuildCollectionOfferPayload(
       offererAddress,
       quantity,
       collectionSlug,
       offerProtectionEnabled,
+      traitType,
+      traitValue,
     );
     const response = await this.post<BuildOfferResponse>(
       getBuildOfferPath(),
@@ -377,13 +406,22 @@ export class OpenSeaAPI {
    * Post a collection offer to OpenSea.
    * @param order The collection offer to post.
    * @param slug The slug (identifier) of the collection to post the offer for.
+   * @param traitType If defined, the trait name to create the collection offer for.
+   * @param traitValue If defined, the trait value to create the collection offer for.
    * @returns The {@link Offer} returned to the API.
    */
   public async postCollectionOffer(
     order: ProtocolData,
     slug: string,
+    traitType?: string,
+    traitValue?: string,
   ): Promise<CollectionOffer | null> {
-    const payload = getPostCollectionOfferPayload(slug, order);
+    const payload = getPostCollectionOfferPayload(
+      slug,
+      order,
+      traitType,
+      traitValue,
+    );
     return await this.post<CollectionOffer>(
       getPostCollectionOfferPath(),
       payload,
@@ -598,19 +636,35 @@ export class OpenSeaAPI {
    * @param body Optional body to send. If set, will POST, otherwise GET
    */
   private async _fetch(url: string, headers?: object, body?: object) {
+    // Create the fetch request
+    const req = new ethers.FetchRequest(url);
+
+    // Set the headers
     headers = {
       "x-app-id": "opensea-js",
       ...(this.apiKey ? { "X-API-KEY": this.apiKey } : {}),
       ...headers,
     };
-
-    const req = new ethers.FetchRequest(url);
     for (const [key, value] of Object.entries(headers)) {
       req.setHeader(key, value);
     }
+
+    // Set the body if provided
     if (body) {
       req.body = body;
     }
+
+    // Set the throttle params
+    // - Should be able to replace this retryFunc with `setThrottleParams({ slotInterval: 1000 })`
+    //   when this bug is fixed in ethers: https://github.com/ethers-io/ethers.js/issues/4663
+    req.retryFunc = async (_req, resp, attempt) => {
+      this.logger(
+        `Fetch attempt ${attempt} failed with status ${resp.statusCode}`,
+      );
+      // Wait 1s between tries
+      await stall(1000);
+      return true;
+    };
 
     this.logger(
       `Sending request: ${url} ${JSON.stringify({
@@ -624,7 +678,11 @@ export class OpenSeaAPI {
       // If an errors array is returned, throw with the error messages.
       const errors = response.bodyJson?.errors;
       if (errors?.length > 0) {
-        throw new Error(`Server Error: ${errors.join(", ")}`);
+        let errorMessage = errors.join(", ");
+        if (errorMessage === "[object Object]") {
+          errorMessage = JSON.stringify(errors);
+        }
+        throw new Error(`Server Error: ${errorMessage}`);
       } else {
         // Otherwise, let ethers throw a SERVER_ERROR since it will include
         // more context about the request and response.
